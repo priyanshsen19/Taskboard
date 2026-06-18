@@ -160,6 +160,8 @@ The task no longer exists after reseed — the 200 write path is unreachable. Th
 
 Airtable base: https://airtable.com/appHJKmr2rFhlIDxQ/tblvBEtSIkzFs6DS8/viw0mD0TqJ0ktZcjT
 
+Before export (empty base): https://drive.google.com/file/d/1E8McpbKVn11svzALY5X2thr9oUVGw0xH/view?usp=sharing
+
 First run — creates all records:
 
 ```
@@ -177,6 +179,8 @@ $ curl -s -X POST "http://localhost:3000/api/projects/cmqj9lfbr000dmf61ayhpehao/
 
 {"message":"export complete: 0 created, 5 updated, 0 failed","created":0,"updated":5,"failed":0,"errors":[]}
 ```
+
+After export (records visible in Airtable): https://drive.google.com/file/d/14iON433w4RgC0lguF2_Y_0i7gb398nbj/view?usp=sharing
 
 Viewer blocked from exporting:
 
