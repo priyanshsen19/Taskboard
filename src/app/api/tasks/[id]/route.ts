@@ -10,6 +10,7 @@ import {
   canEditTasks,
 } from "@/lib/auth";
 import { updateTaskSchema } from "@/schemas/task";
+import { logActivity } from "@/lib/activity";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -37,6 +38,34 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       assignee: { select: { id: true, name: true, email: true } },
     },
   });
+
+  if (parsed.data.status && parsed.data.status !== existing.status) {
+    await logActivity({
+      projectId: existing.projectId,
+      taskId: id,
+      actorId: user.id,
+      action: "status_changed",
+      metadata: { taskTitle: existing.title, from: existing.status, to: parsed.data.status },
+    });
+  }
+
+  if ("assigneeId" in parsed.data && parsed.data.assigneeId !== existing.assigneeId) {
+    let assigneeName: string | null = null;
+    if (parsed.data.assigneeId) {
+      const assignee = await prisma.user.findUnique({
+        where: { id: parsed.data.assigneeId },
+        select: { name: true },
+      });
+      assigneeName = assignee?.name ?? null;
+    }
+    await logActivity({
+      projectId: existing.projectId,
+      taskId: id,
+      actorId: user.id,
+      action: "assignee_changed",
+      metadata: { taskTitle: existing.title, assigneeName },
+    });
+  }
 
   return NextResponse.json({ task });
 }
