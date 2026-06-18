@@ -47,6 +47,8 @@ export default function ProjectPage({ params }: PageProps) {
   const [newTitle, setNewTitle] = useState("");
   const [newColumn, setNewColumn] = useState<TaskStatus>("todo");
   const [error, setError] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!getToken()) router.replace("/login");
@@ -111,16 +113,44 @@ export default function ProjectPage({ params }: PageProps) {
 
         {project && (
           <>
-            <div className="mt-4 mb-8">
-              <h1 className="text-2xl font-semibold">{project.name}</h1>
-              {project.description && (
-                <p className="text-sm text-muted mt-1 max-w-2xl">
-                  {project.description}
+            <div className="flex items-start justify-between mt-4 mb-8">
+              <div>
+                <h1 className="text-2xl font-semibold">{project.name}</h1>
+                {project.description && (
+                  <p className="text-sm text-muted mt-1 max-w-2xl">
+                    {project.description}
+                  </p>
+                )}
+                <p className="text-xs text-muted mt-2">
+                  owner: {project.owner.name} · {project.memberships.length} members
                 </p>
-              )}
-              <p className="text-xs text-muted mt-2">
-                owner: {project.owner.name} · {project.memberships.length} members
-              </p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={async () => {
+                    setExporting(true);
+                    setExportStatus(null);
+                    try {
+                      const res = await apiFetch<{ message: string; failed: number }>(
+                        `/api/projects/${id}/export`,
+                        { method: "POST" },
+                      );
+                      setExportStatus(res.failed > 0 ? `${res.message} — check console for errors` : res.message);
+                    } catch (err) {
+                      setExportStatus(err instanceof Error ? err.message : "export failed");
+                    } finally {
+                      setExporting(false);
+                    }
+                  }}
+                  disabled={exporting}
+                  className="text-sm px-4 py-2 rounded-md border border-border hover:border-accent disabled:opacity-50"
+                >
+                  {exporting ? "exporting…" : "export to Airtable"}
+                </button>
+                {exportStatus && (
+                  <span className="text-xs text-muted max-w-xs text-right">{exportStatus}</span>
+                )}
+              </div>
             </div>
 
             <section className="bg-surface border border-border rounded-lg p-4 mb-6">
