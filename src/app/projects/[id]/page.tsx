@@ -8,10 +8,35 @@ import { apiFetch, getToken } from "@/lib/api-client";
 import { Header } from "@/components/Header";
 import { StatusColumn } from "@/components/StatusColumn";
 import { TaskDetail } from "@/components/TaskDetail";
-import type { ApiProjectDetail, ApiTask, TaskStatus } from "@/types";
+import type { ApiActivityLog, ApiProjectDetail, ApiTask, TaskStatus } from "@/types";
 import { STATUS_ORDER } from "@/types";
 
 type PageProps = { params: Promise<{ id: string }> };
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+const STATUS_DISPLAY: Record<string, string> = {
+  todo: "To do", in_progress: "In progress", review: "In review", done: "Done",
+};
+
+function formatActivity(log: ApiActivityLog): string {
+  const actor = log.actor.name;
+  const m = log.metadata as Record<string, string | null>;
+  const title = m.taskTitle ?? "a task";
+  switch (log.action) {
+    case "task_created":     return `${actor} created "${title}"`;
+    case "status_changed":   return `${actor} moved "${title}" to ${STATUS_DISPLAY[m.to ?? ""] ?? m.to}`;
+    case "assignee_changed": return m.assigneeName
+      ? `${actor} assigned "${title}" to ${m.assigneeName}`
+      : `${actor} unassigned "${title}"`;
+    case "comment_added":    return `${actor} commented on "${title}"`;
+    default:                 return `${actor} updated "${title}"`;
+  }
+}
 
 export default function ProjectPage({ params }: PageProps) {
   const router = useRouter();
@@ -32,6 +57,12 @@ export default function ProjectPage({ params }: PageProps) {
     queryFn: () => apiFetch<{ project: ApiProjectDetail }>(`/api/projects/${id}`),
   });
 
+  const { data: activityData } = useQuery({
+    queryKey: ["activity", id],
+    queryFn: () => apiFetch<{ logs: ApiActivityLog[] }>(`/api/projects/${id}/activity`),
+    refetchInterval: 30_000,
+  });
+
   const createTask = useMutation({
     mutationFn: (input: { title: string; status: TaskStatus }) =>
       apiFetch<{ task: ApiTask }>(`/api/projects/${id}/tasks`, {
@@ -41,6 +72,7 @@ export default function ProjectPage({ params }: PageProps) {
     onSuccess: () => {
       setNewTitle("");
       queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["activity", id] });
     },
     onError: (err) => setError(err instanceof Error ? err.message : "create failed"),
   });
@@ -79,18 +111,16 @@ export default function ProjectPage({ params }: PageProps) {
 
         {project && (
           <>
-            <div className="flex items-start justify-between mt-4 mb-8">
-              <div>
-                <h1 className="text-2xl font-semibold">{project.name}</h1>
-                {project.description && (
-                  <p className="text-sm text-muted mt-1 max-w-2xl">
-                    {project.description}
-                  </p>
-                )}
-                <p className="text-xs text-muted mt-2">
-                  owner: {project.owner.name} · {project.memberships.length} members
+            <div className="mt-4 mb-8">
+              <h1 className="text-2xl font-semibold">{project.name}</h1>
+              {project.description && (
+                <p className="text-sm text-muted mt-1 max-w-2xl">
+                  {project.description}
                 </p>
-              </div>
+              )}
+              <p className="text-xs text-muted mt-2">
+                owner: {project.owner.name} · {project.memberships.length} members
+              </p>
             </div>
 
             <section className="bg-surface border border-border rounded-lg p-4 mb-6">
@@ -149,6 +179,22 @@ export default function ProjectPage({ params }: PageProps) {
             </div>
 
             <section className="mt-10">
+              <h2 className="text-sm font-medium mb-3">recent activity</h2>
+              {!activityData || activityData.logs.length === 0 ? (
+                <p className="text-xs text-muted">no activity yet</p>
+              ) : (
+                <ul className="bg-surface border border-border rounded-lg divide-y divide-border">
+                  {activityData.logs.map((log) => (
+                    <li key={log.id} className="px-4 py-3 flex items-start justify-between gap-4 text-sm">
+                      <span>{formatActivity(log)}</span>
+                      <span className="text-xs text-muted shrink-0">{formatDate(log.createdAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="mt-10">
               <h2 className="text-sm font-medium mb-3">members</h2>
               <ul className="bg-surface border border-border rounded-lg divide-y divide-border">
                 {project.memberships.map((m) => (
@@ -173,7 +219,10 @@ export default function ProjectPage({ params }: PageProps) {
           task={activeTask}
           projectId={id}
           members={project.memberships}
-          onClose={() => setActiveTask(null)}
+          onClose={() => {
+            setActiveTask(null);
+            queryClient.invalidateQueries({ queryKey: ["activity", id] });
+          }}
         />
       )}
     </div>

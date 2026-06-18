@@ -39,6 +39,15 @@ export type ApiProjectDetail = {
   updatedAt: string;
 };
 
+export type ApiActivityLog = {
+  id: string;
+  action: "task_created" | "status_changed" | "assignee_changed" | "comment_added";
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  actor: { id: string; name: string; email: string };
+  task: { id: string; title: string } | null;
+};
+
 export type ApiComment = {
   id: string;
   body: string;
